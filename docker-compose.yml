@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  # 1. Serviço de Banco de Dados (PostgreSQL)
+  db:
+    image: postgres:16-alpine 
+    container_name: uaifood_db
+    restart: always
+    
+    # Variáveis de ambiente para o PostgreSQL
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-uaifood_delivery}
+      
+    # Mapeamento de porta 
+    ports:
+      - "5432:5432"
+      
+    # Volume persistente
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Serviço de Backend (Node.js/Express)
+  backend:
+    container_name: uaifood_backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev 
+    
+    # Instala dependências, gera o Prisma Client e inicia o servidor
+    command: sh -c "npm install && npx prisma generate && npm run dev"
+
+    # Mapeamento de porta: 3001 (host) -> 3000 (container)
+    ports:
+      - "3001:3000"
+      
+    # Variáveis de ambiente
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-uaifood_delivery}
+      PORT: 3000
+      
+    # Garante que o backend só inicie após o banco de dados estar pronto
+    depends_on:
+      - db
+
+    # Mapeamento de volumes para desenvolvimento (hot-reload)
+    volumes:
+      - ./backend:/app
+      - /app/node_modules 
+
+# Volumes para persistência de dados
+volumes:
+  postgres_data:

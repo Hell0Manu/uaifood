@@ -1,0 +1,194 @@
+// Prisma Schema para o Projeto UaiFood
+// Alinhado com a Fase 1: Estrutura de Dados do CONTEXTO.md
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ENUMS
+// Role: Define os tipos de usuário conforme o CONTEXTO.md (Fase 0.6 e 5)
+enum Role {
+  CLIENT
+  RESTAURANT_OWNER
+  ADMIN
+}
+
+// PaymentMethod: Métodos de pagamento (baseado no seu exemplo)
+enum PaymentMethod {
+  CASH
+  DEBIT
+  CREDIT
+  PIX
+}
+
+// OrderStatus: Status do pedido (simplificado)
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  ON_THE_WAY
+  DELIVERED
+  CANCELLED
+}
+
+// MODELOS
+
+// User: Inclui o campo 'role' conforme Fase 0.6 e 5 do CONTEXTO.md
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  phone     String?
+  role      Role     @default(CLIENT) // Campo 'role' obrigatório
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  addresses   Address[]
+  orders      Order[]
+  reviews     Review[]
+  restaurants Restaurant[] // Restaurantes que o usuário é dono (RESTAURANT_OWNER)
+}
+
+// Address: Endereços do usuário (1:N com User)
+model Address {
+  id        Int      @id @default(autoincrement())
+  street    String
+  number    String
+  district  String
+  city      String
+  state     String
+  zipCode   String
+  
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  orders    Order[] // Endereço de entrega do pedido
+}
+
+// Restaurant: Modelo central de negócio (Fase 1)
+model Restaurant {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  status      String    @default("OPEN") // Ex: OPEN, CLOSED
+  ownerId     Int
+  owner       User      @relation(fields: [ownerId], references: [id]) // 1:1 ou 1:N com User (dono)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relacionamentos
+  categories  Category[]
+  products    Product[]
+  reviews     Review[]
+  orders      Order[]
+}
+
+// Category: Categorias de Restaurantes (N:M simplificado para 1:N com Restaurant)
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  
+  restaurantId Int?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Product: Itens do menu (Fase 1)
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  price       Decimal
+  imageUrl    String?
+  
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id]) // 1:N com Restaurant
+  
+  productCategoryId Int
+  productCategory   ProductCategory @relation(fields: [productCategoryId], references: [id]) // 1:N com ProductCategory
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems  OrderItem[]
+}
+
+// ProductCategory: Categorias de Produtos (Fase 1)
+model ProductCategory {
+  id          Int      @id @default(autoincrement())
+  name        String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products    Product[]
+}
+
+// Order: Pedidos (Fase 1 e 6)
+model Order {
+  id            Int           @id @default(autoincrement())
+  total         Decimal
+  status        OrderStatus   @default(PENDING) // Status do pedido
+  paymentMethod PaymentMethod
+  
+  clientId      Int
+  client        User          @relation(fields: [clientId], references: [id])
+  
+  restaurantId  Int
+  restaurant    Restaurant    @relation(fields: [restaurantId], references: [id]) // Pedido pertence a um restaurante
+  
+  deliveryAddressId Int
+  deliveryAddress   Address   @relation(fields: [deliveryAddressId], references: [id]) // Endereço de entrega
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  items         OrderItem[]
+}
+
+// OrderItem: Itens do Pedido (Fase 1 e 6)
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  quantity  Int
+  price     Decimal // Preço do item no momento do pedido (para histórico)
+  
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id])
+  
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id]) // Produto do menu
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Review: Avaliações (Fase 1)
+model Review {
+  id          Int      @id @default(autoincrement())
+  rating      Int      // Nota (e.g., 1 a 5)
+  comment     String?
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id]) // Usuário que avaliou
+  
+  restaurantId Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id]) // Restaurante avaliado
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
